@@ -1,0 +1,65 @@
+version: '3'
+
+services:
+  web:
+    container_name: django_deploy_test_container
+    restart: always
+    build: .
+    entrypoint: ./docker-entrypoint.sh
+    volumes:
+      - .:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - rabbitmq
+
+  db:
+    container_name: demo_db_container
+    image: postgres:12
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - "./postgres-data:/var/lib/postgresql/data"
+    ports:
+      - "5432:5432"
+
+  ## message queue for celery
+  rabbitmq:
+    container_name: demo_rabbitmq
+    image: rabbitmq:3-management
+    env_file:
+      - .env
+    volumes:
+      - "./rabbitmq-data:/var/lib/rabbitmq/mnesia/guest@guest"
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  worker:
+    container_name: celery_demo_container
+    build: .
+    restart: always
+    env_file:
+      - .env
+    command: celery -A deployment_test worker
+    volumes:
+      - .:/code
+    depends_on:
+      - db
+      - rabbitmq
+
+  beat:
+    build: .
+    restart: always
+    env_file:
+      - .env
+    entrypoint: ./beat-entrypoint.sh
+    volumes:
+      - .:/code
+    depends_on:
+      - rabbitmq
+      - db
